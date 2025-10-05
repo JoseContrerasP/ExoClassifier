@@ -97,23 +97,26 @@ class ExoplanetPredictor:
             engineered['signal_strength'] = input_dict['koi_depth'] * input_dict['koi_model_snr']
         
         # ====================================================================
-        # CATEGORY 4: FLAG AGGREGATIONS (4 features)
+        # CATEGORY 4: BASIC ENGINEERED FEATURES
         # ====================================================================
         
-        # 15. Centroid Offset Total
+        # 15. Centroid Offset Total (measurement, not a flag)
         if 'koi_dicco_mra' in input_dict and 'koi_dicco_mdec' in input_dict:
             engineered['centroid_offset_total'] = np.sqrt(input_dict['koi_dicco_mra']**2 + input_dict['koi_dicco_mdec']**2)
         
-        # 16. Number of Red Flags
-        flag_cols = ['koi_fpflag_nt', 'koi_fpflag_ss', 'koi_fpflag_co', 'koi_fpflag_ec']
-        flags_present = [input_dict.get(col, 0) for col in flag_cols]
-        engineered['num_red_flags'] = sum(flags_present)
-        
-        # 17. Any Red Flag
-        engineered['any_red_flag'] = 1 if engineered['num_red_flags'] > 0 else 0
-        
-        # 18. Warning Category
-        engineered['warning_category'] = min(engineered['num_red_flags'], 2)
+        # REMOVED: Flag aggregation features (data leakage)
+        # These relied on NASA's vetting flags which encode the target variable
+        # 
+        # # 16. Number of Red Flags
+        # flag_cols = ['koi_fpflag_nt', 'koi_fpflag_ss', 'koi_fpflag_co', 'koi_fpflag_ec']
+        # flags_present = [input_dict.get(col, 0) for col in flag_cols]
+        # engineered['num_red_flags'] = sum(flags_present)
+        # 
+        # # 17. Any Red Flag
+        # engineered['any_red_flag'] = 1 if engineered['num_red_flags'] > 0 else 0
+        # 
+        # # 18. Warning Category
+        # engineered['warning_category'] = min(engineered['num_red_flags'], 2)
         
         return engineered
     
@@ -171,10 +174,9 @@ class ExoplanetPredictor:
             'koi_period_err1',
             'koi_duration_err1',
             'koi_dicco_msky',
-            'koi_fpflag_ss',
-            'koi_fpflag_co',
-            'koi_fpflag_nt',
-            'koi_fpflag_ec',
+            'koi_dicco_mra',
+            'koi_dicco_mdec',
+            # Removed: koi_fpflag_* (diagnostic flags cause data leakage)
         ]
         
         optional = [
