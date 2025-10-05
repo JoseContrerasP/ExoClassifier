@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BarChart3, LineChart, PieChart, TrendingUp, ArrowLeft, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { API_ENDPOINTS } from "@/lib/api-config";
 
 const Visualize = () => {
   const [searchParams] = useSearchParams();
@@ -26,7 +27,7 @@ const Visualize = () => {
     
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/predict/details/${uploadId}`);
+      const response = await fetch(API_ENDPOINTS.predictDetails(uploadId));
       const result = await response.json();
       
       if (result.success) {

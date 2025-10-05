@@ -9,6 +9,7 @@ import { Sparkles, CheckCircle2, XCircle, Database, FileText } from "lucide-reac
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { predictBatch } from "@/lib/api-placeholders";
+import { API_ENDPOINTS } from "@/lib/api-config";
 
 interface UploadedDataset {
   upload_id: string;
@@ -54,7 +55,7 @@ const Predict = () => {
 
   const loadFineTunedModels = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/train/models/list');
+      const response = await fetch(API_ENDPOINTS.trainModelsList);
       const result = await response.json();
       if (result.success) {
         setFineTunedModels(result.models);
@@ -100,7 +101,7 @@ const Predict = () => {
     if (!currentUploadId) return;
     
     // Download CSV file
-    const url = `http://localhost:5000/api/predict/export/${currentUploadId}`;
+    const url = API_ENDPOINTS.predictExport(currentUploadId);
     window.open(url, '_blank');
     
     toast({

@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { API_ENDPOINTS } from "@/lib/api-config";
 
 interface UploadedDataset {
   upload_id: string;
@@ -100,7 +101,7 @@ const FineTune = () => {
       formData.append('dataset_type', datasetType);
       formData.append('keep_labels', 'true'); // Special flag to keep disposition column
 
-      const response = await fetch('http://localhost:5000/api/train/upload_labeled', {
+      const response = await fetch(API_ENDPOINTS.trainUploadLabeled, {
         method: 'POST',
         body: formData,
       });
@@ -166,7 +167,7 @@ const FineTune = () => {
         };
       }
 
-      const response = await fetch('http://localhost:5000/api/train/finetune', {
+      const response = await fetch(API_ENDPOINTS.trainFinetune, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
