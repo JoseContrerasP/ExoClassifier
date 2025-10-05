@@ -13,6 +13,18 @@ from typing import Optional, Dict
 class ModelTrainer:
     def __init__(self):
         self.models: Dict[str, any] = {}
+    
+    @property
+    def xgb_model(self):
+        return self.models.get('xgboost')
+    
+    @property
+    def rf_model(self):
+        return self.models.get('random_forest')
+    
+    @property
+    def nn_model(self):
+        return self.models.get('neural_network')
 
     # ------------------ XGBoost ------------------
     def train_xgboost(self, X_train, y_train, X_val, y_val, params: Optional[dict] = None, verbose: bool=False):
@@ -21,12 +33,21 @@ class ModelTrainer:
 
         class_weights = compute_class_weight('balanced', classes=np.unique(y_train), y=y_train)
         params['scale_pos_weight'] = class_weights[0] / class_weights[1]
-        params.update({'objective': 'binary:logistic', 'eval_metric': 'auc', 'random_state': config.RANDOM_STATE})
+        params.update({
+            'objective': 'binary:logistic', 
+            'eval_metric': 'auc', 
+            'random_state': config.RANDOM_STATE,
+            'early_stopping_rounds': 10  # Stop if no improvement for 10 rounds
+        })
 
         model = xgb.XGBClassifier(**params)
-        model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=verbose)
+        model.fit(
+            X_train, y_train, 
+            eval_set=[(X_train, y_train), (X_val, y_val)],
+            verbose=verbose
+        )
         self.models['xgboost'] = model
-        print("✓ XGBoost trained")
+        print(f"✓ XGBoost trained (best iteration: {model.best_iteration})")
         return model
 
     # ------------------ Random Forest ------------------
@@ -83,13 +104,23 @@ class ModelTrainer:
 
     # ------------------ Save Models ------------------
     def save_models(self, save_dir: Optional[str] = None):
-        save_dir = Path(save_dir) if save_dir else Path('.')
-        save_dir.mkdir(parents=True, exist_ok=True)
+        # If save_dir not provided, use paths from config directly
+        if save_dir is None:
+            xgb_path = config.XGBOOST_MODEL_PATH
+            rf_path = config.RF_MODEL_PATH
+            nn_path = config.NN_MODEL_PATH
+        else:
+            # If save_dir provided, use it with just the filenames
+            save_dir = Path(save_dir)
+            save_dir.mkdir(parents=True, exist_ok=True)
+            xgb_path = save_dir / 'xgboost_model.pkl'
+            rf_path = save_dir / 'random_forest_model.pkl'
+            nn_path = save_dir / 'neural_network_model.h5'
 
-        joblib.dump(self.models['xgboost'], save_dir / config.XGBOOST_MODEL_PATH)
-        joblib.dump(self.models['random_forest'], save_dir / config.RF_MODEL_PATH)
-        self.models['neural_network'].save(save_dir / config.NN_MODEL_PATH)
-        print("✓ All models saved")
+        joblib.dump(self.models['xgboost'], xgb_path)
+        joblib.dump(self.models['random_forest'], rf_path)
+        self.models['neural_network'].save(nn_path)
+        print(f"✓ All models saved to: {Path(xgb_path).parent}")
 
     # ------------------ Evaluate Models ------------------
     def evaluate_models(self, X_test_scaled, X_test, y_test):

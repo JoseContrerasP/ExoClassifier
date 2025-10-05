@@ -12,12 +12,69 @@ venv/
 *.egg-info/
 dist/
 build/
+.pytest_cache/
+.coverage
+htmlcov/
+*.pyc
+
+# =========================
+# Machine Learning Models & Data
+# =========================
+# Base trained models (too large for GitHub, use Git LFS or download separately)
+models/*.pkl
+models/*.h5
+# Keep feature names (small JSON file)
+!models/feature_names.json
+
+# Fine-tuned models (user-generated, don't commit)
+models/finetuned/
+
+# Data directories
+data/uploads/
+data/temp/
+data/raw/
+data/processed/
+
+# Large dataset files
+*.csv
+!**/template*.csv
+*.xlsx
+*.parquet
+
+# Diagnostic outputs
+diagnostic_*.png
+diagnostic_*.jpg
+
+# =========================
+# Frontend / Node.js
+# =========================
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/docs/
+frontend/.next/
+frontend/out/
+*.tsbuildinfo
+.turbo/
+.vercel/
+
+# Lock files (optional - keep one, ignore others)
+# package-lock.json
+# yarn.lock
+bun.lockb
+
+# Frontend build artifacts
+frontend/coverage/
+frontend/.cache/
 
 # =========================
 # OS Files
 # =========================
 .DS_Store
 Thumbs.db
+*.swp
+*~
 
 # =========================
 # IDE / Editor Files
@@ -26,11 +83,35 @@ Thumbs.db
 .idea/
 *.sublime-project
 *.sublime-workspace
+*.code-workspace
+.history/
 
 # =========================
 # Logs
 # =========================
 *.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Environment Variables
+# =========================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# =========================
+# Testing
+# =========================
+*.coverage
+.pytest_cache/
+.tox/
+htmlcov/
+coverage/
 
 # =========================
 # Misc
@@ -39,3 +120,24 @@ Thumbs.db
 *.db
 *.bak
 *.tmp
+*.swp
+.DS_Store
+
+# API cache
+api/__pycache__/
+api/routes/__pycache__/
+api/utils/__pycache__/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Documentation builds (keep source, ignore generated)
+docs/_build/
+docs/.doctrees/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp

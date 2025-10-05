@@ -119,7 +119,7 @@ const Home = () => {
                     <Sparkles className="h-6 w-6 text-primary mt-1 flex-shrink-0" />
                     <div>
                       <h4 className="font-semibold text-foreground mb-2">AI Models</h4>
-                      <p className="text-muted-foreground">XGBoost and Deep Neural Network models with 94%+ accuracy</p>
+                      <p className="text-muted-foreground">XGBoost and Deep Neural Network models around 90% accuracy</p>
                     </div>
                   </div>
                 </div>

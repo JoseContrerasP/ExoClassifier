@@ -150,34 +150,43 @@ class FeatureEngineer:
     
     def add_basic_engineered_features(self, df):
         
-        print("\n4. Flag Aggregations & Basic Features:")
+        # NEW: 5 Additional Physics-Based Features
+        print("\n Additional Physics Features:")
         
-        # Feature 15: Total Centroid Offset
-        if 'koi_dicco_mra' in df.columns and 'koi_dicco_mdec' in df.columns:
-            df['centroid_offset_total'] = np.sqrt(df['koi_dicco_mra']**2 + df['koi_dicco_mdec']**2)
-            self.engineered_features.append('centroid_offset_total')
-            print("  ✓ centroid_offset_total = √(RA² + Dec²)")
+        # Feature 16: Planet Density Proxy (mass/radius relationship) ✓ TESS
+        if 'koi_prad' in df.columns:
+            # Assuming typical planet mass-radius relationship: M ∝ R^2.06
+            # Density proxy: higher values = denser objects (more planet-like)
+            df['planet_density_proxy'] = df['koi_prad'] ** (-1.06)
+            self.engineered_features.append('planet_density_proxy')
+            print("  ✓ planet_density_proxy = R^(-1.06) (mass-radius proxy)")
         
-        # Feature 16: Number of Red Flags
-        flag_cols = ['koi_fpflag_nt', 'koi_fpflag_ss', 'koi_fpflag_co', 'koi_fpflag_ec']
-        available_flags = [col for col in flag_cols if col in df.columns]
-        if available_flags:
-            df['num_red_flags'] = df[available_flags].fillna(0).sum(axis=1)
-            self.engineered_features.append('num_red_flags')
-            print(f"  ✓ num_red_flags = sum of {len(available_flags)} diagnostic flags")
-            
-            # Feature 17: Any Red Flag (binary)
-            df['any_red_flag'] = (df['num_red_flags'] > 0).astype(int)
-            self.engineered_features.append('any_red_flag')
-            print("  ✓ any_red_flag = 1 if num_red_flags > 0")
+        # Feature 17: Stellar Insolation Factor (combining stellar and orbital properties) ✓ TESS
+        if all(col in df.columns for col in ['koi_steff', 'koi_srad', 'koi_period']):
+            # Estimated insolation based on stellar properties
+            # Kepler's 3rd law approximation for semi-major axis
+            a_approx = (df['koi_period'] / 365.25) ** (2/3)  # AU, assuming solar mass
+            df['stellar_insolation_factor'] = (df['koi_steff'] / 5778) ** 4 * (df['koi_srad'] ** 2) / (a_approx ** 2 + 1e-10)
+            self.engineered_features.append('stellar_insolation_factor')
+            print("  ✓ stellar_insolation_factor = (Tstar/Tsun)^4 * (Rs^2/a^2)")
         
-        # Feature 18: Warning Category
-        # 0 = clean, 1 = one warning, 2 = multiple warnings
-        if 'num_red_flags' in df.columns:
-            df['warning_category'] = np.clip(df['num_red_flags'], 0, 2)
-            self.engineered_features.append('warning_category')
-            print("  ✓ warning_category = 0 (clean), 1 (warning), 2+ (multiple)")
+        # Feature 18: Transit Signal Strength (combining depth and SNR) ✓ TESS
+        if 'koi_depth' in df.columns and 'koi_model_snr' in df.columns:
+            # Normalized signal strength
+            df['normalized_signal_strength'] = np.log10(df['koi_depth'] + 1) * np.log10(df['koi_model_snr'] + 1)
+            self.engineered_features.append('normalized_signal_strength')
+            print("  ✓ normalized_signal_strength = log(depth) * log(SNR)")
         
+        # Feature 19: Orbital Period Harmonic Check ✓ TESS
+        if 'koi_period' in df.columns:
+            # Check if period is near common harmonics (false positives often at 1/2, 1/3 day periods)
+            # Distance from nearest integer day (stellar rotation aliases)
+            nearest_day = np.round(df['koi_period'])
+            df['period_day_offset'] = np.abs(df['koi_period'] - nearest_day) / (df['koi_period'] + 1e-10)
+            self.engineered_features.append('period_day_offset')
+            print("  ✓ period_day_offset = |period - nearest_day| / period")
+                
+                
         return df
     
     def get_engineered_feature_names(self):

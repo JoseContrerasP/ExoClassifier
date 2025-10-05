@@ -1,41 +1,170 @@
-/**
- * API Placeholder Functions
- * 
- * These are placeholder functions indicating where backend API calls
- * should be integrated. Replace these with actual API implementations.
- */
 
+// API Base URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+export const uploadCSVData = async (file: File, datasetType: 'tess' | 'kepler' = 'tess') => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('dataset_type', datasetType);
 
+    const response = await fetch(`${API_BASE_URL}/upload/csv`, {
+      method: 'POST',
+      body: formData,
+    });
 
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Upload failed');
+    }
 
-
-
-
-
-
-
-
-// ============= Data Upload =============
-
-/**
- * Upload CSV file containing exoplanet parameters
- * Backend integration point: POST /api/upload/csv
- */
-export const uploadCSVData = async (file: File) => {
-  // TODO: Implement backend API call
-  console.log('[API Placeholder] uploadCSVData:', file.name);
-  return { success: true, data: { recordCount: 100 } };
+    const result = await response.json();
+    return result;
+  } catch (error: any) {
+    console.error('[API Error] uploadCSVData:', error);
+    throw error;
+  }
 };
 
-/**
- * Submit manually entered parameters
- * Backend integration point: POST /api/upload/manual
- */
-export const submitManualParameters = async (parameters: Record<string, number>) => {
-  // TODO: Implement backend API call
-  console.log('[API Placeholder] submitManualParameters:', parameters);
-  return { success: true, data: { id: 'sample-id' } };
+export const downloadCSVTemplate = async (datasetType: 'tess' | 'kepler' = 'tess') => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/upload/template/${datasetType}`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to download template');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `exoplanet_${datasetType}_template.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  } catch (error: any) {
+    console.error('[API Error] downloadCSVTemplate:', error);
+    throw error;
+  }
+};
+
+
+export const getDataPreview = async (uploadId: string, limit: number = 10) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/data/preview/${uploadId}?limit=${limit}`);
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to get preview');
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error: any) {
+    console.error('[API Error] getDataPreview:', error);
+    throw error;
+  }
+};
+
+
+export const getDataStats = async (uploadId: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/data/stats/${uploadId}`);
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to get statistics');
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error: any) {
+    console.error('[API Error] getDataStats:', error);
+    throw error;
+  }
+};
+
+
+export const deleteUpload = async (uploadId: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/data/delete/${uploadId}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to delete upload');
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error: any) {
+    console.error('[API Error] deleteUpload:', error);
+    throw error;
+  }
+};
+
+
+export const submitManualParameters = async (
+  features: Record<string, number>, 
+  datasetType: 'tess' | 'kepler' = 'tess'
+) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/predict/single`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        dataset_type: datasetType,
+        features: features,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      const errorObj = new Error(error.error || 'Prediction failed');
+      // Attach validation errors if present
+      if (error.validation_errors) {
+        (errorObj as any).validation_errors = error.validation_errors;
+      }
+      throw errorObj;
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error: any) {
+    console.error('[API Error] submitManualParameters:', error);
+    throw error;
+  }
+};
+
+
+export const predictBatch = async (uploadId: string, modelType: string = 'ensemble') => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/predict/batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        upload_id: uploadId,
+        model_type: modelType,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Batch prediction failed');
+    }
+
+    const result = await response.json();
+    return result.predictions;
+  } catch (error: any) {
+    console.error('[API Error] predictBatch:', error);
+    throw error;
+  }
 };
 
 // ============= Dataset Management =============

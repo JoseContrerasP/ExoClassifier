@@ -1,67 +1,119 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import { Sparkles, CheckCircle2, XCircle, Database, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
+import { predictBatch } from "@/lib/api-placeholders";
+
+interface UploadedDataset {
+  upload_id: string;
+  filename: string;
+  dataset_type: string;
+  upload_date: string;
+  summary: {
+    processed_rows: number;
+    total_features: number;
+    base_features: number;
+    engineered_features: number;
+  };
+}
+
+interface FineTunedModel {
+  model_id: string;
+  timestamp: string;
+  models: string[];
+  samples: number;
+  features: number;
+  results: any;
+}
 
 const Predict = () => {
   const { toast } = useToast();
-  const [selectedModel, setSelectedModel] = useState<string>("xgboost");
+  const navigate = useNavigate();
+  const [selectedModel, setSelectedModel] = useState<string>("ensemble");
+  const [selectedDataset, setSelectedDataset] = useState<string>("");
+  const [datasets, setDatasets] = useState<UploadedDataset[]>([]);
+  const [fineTunedModels, setFineTunedModels] = useState<FineTunedModel[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [prediction, setPrediction] = useState<{
-    class: string;
-    probability: number;
-    confidence: string;
-  } | null>(null);
+  const [predictions, setPredictions] = useState<any>(null);
+  const [currentUploadId, setCurrentUploadId] = useState<string>("");
 
-  const handlePredict = () => {
-    setIsLoading(true);
-    
-    // Backend integration point: runPrediction(selectedModel, inputData)
-    // Simulate API call
-    setTimeout(() => {
-      const mockPrediction = {
-        class: "CONFIRMED",
-        probability: 0.89,
-        confidence: "HIGH"
-      };
-      setPrediction(mockPrediction);
-      setIsLoading(false);
+  // Load datasets and fine-tuned models on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('uploaded_datasets');
+    if (stored) {
+      setDatasets(JSON.parse(stored));
+    }
+    loadFineTunedModels();
+  }, []);
+
+  const loadFineTunedModels = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/train/models/list');
+      const result = await response.json();
+      if (result.success) {
+        setFineTunedModels(result.models);
+      }
+    } catch (error) {
+      console.error('Failed to load fine-tuned models:', error);
+    }
+  };
+
+  const handlePredict = async () => {
+    if (!selectedDataset) {
       toast({
-        title: "Prediction complete",
-        description: `Classification: ${mockPrediction.class}`,
+        title: "No dataset selected",
+        description: "Please select a dataset to predict on",
+        variant: "destructive",
       });
-    }, 2000);
-  };
+      return;
+    }
 
-  const getClassIcon = (classType: string) => {
-    switch (classType) {
-      case "CONFIRMED":
-        return <CheckCircle2 className="h-6 w-6 text-success" />;
-      case "CANDIDATE":
-        return <AlertTriangle className="h-6 w-6 text-warning" />;
-      case "FALSE POSITIVE":
-        return <XCircle className="h-6 w-6 text-destructive" />;
-      default:
-        return null;
+    setIsLoading(true);
+    try {
+      // Call the real batch prediction API
+      const result = await predictBatch(selectedDataset, selectedModel);
+      
+      setPredictions(result);
+      setCurrentUploadId(result.upload_id); // Store for export/details
+      toast({
+        title: "✅ Prediction complete",
+        description: `Classified ${result.total_predictions} samples`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "❌ Prediction failed",
+        description: error.message || "Could not process predictions",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const getClassColor = (classType: string) => {
-    switch (classType) {
-      case "CONFIRMED":
-        return "bg-success/20 text-success border-success";
-      case "CANDIDATE":
-        return "bg-warning/20 text-warning border-warning";
-      case "FALSE POSITIVE":
-        return "bg-destructive/20 text-destructive border-destructive";
-      default:
-        return "";
-    }
+  const handleExportResults = () => {
+    if (!currentUploadId) return;
+    
+    // Download CSV file
+    const url = `http://localhost:5000/api/predict/export/${currentUploadId}`;
+    window.open(url, '_blank');
+    
+    toast({
+      title: "📥 Downloading results",
+      description: "Your predictions CSV is being downloaded",
+    });
+  };
+
+  const handleViewDetails = () => {
+    if (!currentUploadId) return;
+    
+    // Navigate to Visualize page with upload_id parameter
+    navigate(`/visualize?upload_id=${currentUploadId}`);
   };
 
   return (
@@ -83,6 +135,33 @@ const Predict = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Dataset Selection */}
+              <div className="space-y-2">
+                <Label>Select Dataset</Label>
+                <Select value={selectedDataset} onValueChange={setSelectedDataset}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a dataset..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {datasets.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground text-center">
+                        No datasets available. Upload data first.
+                      </div>
+                    ) : (
+                      datasets.map((dataset) => (
+                        <SelectItem key={dataset.upload_id} value={dataset.upload_id}>
+                          <div className="flex items-center gap-2">
+                            <Database className="h-4 w-4" />
+                            {dataset.filename} ({dataset.summary.processed_rows} rows)
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Model Selection */}
               <div className="space-y-2">
                 <Label>Select Model</Label>
                 <Select value={selectedModel} onValueChange={setSelectedModel}>
@@ -90,46 +169,98 @@ const Predict = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="xgboost">XGBoost Classifier</SelectItem>
-                    <SelectItem value="dnn">Deep Neural Network</SelectItem>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Base Models</div>
+                    <SelectItem value="ensemble">🏆 Ensemble (All 3 Models)</SelectItem>
+                    <SelectItem value="xgboost">⚡ XGBoost</SelectItem>
+                    <SelectItem value="random_forest">🌲 Random Forest</SelectItem>
+                    <SelectItem value="neural_network">🧠 Neural Network</SelectItem>
+                    
+                    {fineTunedModels.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2 border-t">Fine-Tuned Models</div>
+                        {fineTunedModels.map((model) => (
+                          <SelectItem key={model.model_id} value={`finetuned:${model.model_id}`}>
+                            <div className="flex items-center gap-2">
+                              <span>🎯</span>
+                              <span className="text-xs">
+                                {model.models.join(', ')} - {model.samples} samples
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
+                {selectedModel.startsWith('finetuned:') && (
+                  <p className="text-xs text-muted-foreground">
+                    Using custom fine-tuned model
+                  </p>
+                )}
               </div>
 
+              {/* Model Information */}
               <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
                 <p className="font-medium">Model Information</p>
-                {selectedModel === "xgboost" ? (
+                {selectedModel === "ensemble" && (
                   <div className="text-muted-foreground space-y-1">
-                    <p>Gradient boosting ensemble</p>
-                    <p>Accuracy: 94.2%</p>
-                    <p>Training samples: 5,124</p>
-                    <p>Last updated: 2025-03-15</p>
+                    <p>Weighted ensemble of 3 models</p>
+                    <p>Uses XGBoost + Random Forest + Neural Network</p>
+                    <p>Best overall performance</p>
                   </div>
-                ) : (
+                )}
+                {selectedModel === "xgboost" && (
+                  <div className="text-muted-foreground space-y-1">
+                    <p>Gradient boosting classifier</p>
+                    <p>Test Accuracy: ~83%</p>
+                    <p>AUC: ~0.916</p>
+                  </div>
+                )}
+                {selectedModel === "random_forest" && (
+                  <div className="text-muted-foreground space-y-1">
+                    <p>Random forest ensemble</p>
+                    <p>Test Accuracy: ~85%</p>
+                    <p>AUC: ~0.916</p>
+                  </div>
+                )}
+                {selectedModel === "neural_network" && (
                   <div className="text-muted-foreground space-y-1">
                     <p>Deep neural network (4 layers)</p>
-                    <p>Accuracy: 92.8%</p>
-                    <p>Training samples: 5,124</p>
-                    <p>Last updated: 2025-03-15</p>
+                    <p>Test Accuracy: ~83%</p>
+                    <p>AUC: ~0.907</p>
                   </div>
                 )}
               </div>
 
-              <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
-                <p className="font-medium">Input Data Status</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Parameters loaded</span>
-                  <Badge variant="default">Ready</Badge>
+              {/* Selected Dataset Info */}
+              {selectedDataset && (
+                <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
+                  <p className="font-medium">Selected Dataset</p>
+                  {datasets.find(d => d.upload_id === selectedDataset) && (() => {
+                    const dataset = datasets.find(d => d.upload_id === selectedDataset)!;
+                    return (
+                      <div className="space-y-1 text-muted-foreground">
+                        <div className="flex items-center justify-between">
+                          <span>Filename</span>
+                          <Badge variant="outline">{dataset.filename}</Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Rows</span>
+                          <Badge variant="default">{dataset.summary.processed_rows}</Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span>Type</span>
+                          <Badge variant="secondary">{dataset.dataset_type.toUpperCase()}</Badge>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Features extracted</span>
-                  <Badge variant="default">Complete</Badge>
-                </div>
-              </div>
+              )}
 
               <Button 
                 onClick={handlePredict} 
-                disabled={isLoading}
+                disabled={isLoading || !selectedDataset}
                 className="w-full"
               >
                 {isLoading ? (
@@ -137,7 +268,7 @@ const Predict = () => {
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4 mr-2" />
-                    Run Prediction
+                    Run Batch Prediction
                   </>
                 )}
               </Button>
@@ -161,56 +292,91 @@ const Predict = () => {
               </div>
             </CardHeader>
             <CardContent>
-              {!prediction && !isLoading && (
+              {!predictions && !isLoading && (
                 <div className="text-center py-12 text-muted-foreground">
                   <Sparkles className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                  <p>Run prediction to see results</p>
+                  <p>Select dataset and run prediction to see results</p>
                 </div>
               )}
 
               {isLoading && (
                 <div className="space-y-4 py-8">
                   <div className="text-center text-muted-foreground mb-4">
-                    Processing classification...
+                    Processing batch predictions...
                   </div>
                   <Progress value={60} className="w-full" />
                 </div>
               )}
 
-              {prediction && !isLoading && (
+              {predictions && !isLoading && (
                 <div className="space-y-6">
-                  <div className={`rounded-lg border-2 p-6 text-center ${getClassColor(prediction.class)}`}>
-                    <div className="flex justify-center mb-3">
-                      {getClassIcon(prediction.class)}
-                    </div>
-                    <h3 className="text-2xl font-bold mb-2">{prediction.class}</h3>
-                    <p className="text-sm opacity-80">Classification Result</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="text-muted-foreground">Probability</span>
-                        <span className="font-medium">{(prediction.probability * 100).toFixed(1)}%</span>
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-green-50 dark:bg-green-950 border-2 border-green-500 rounded-lg p-6 text-center">
+                      <div className="flex justify-center mb-2">
+                        <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
                       </div>
-                      <Progress value={prediction.probability * 100} />
+                      <p className="text-3xl font-bold text-green-900 dark:text-green-100">
+                        {predictions.planet_count || 0}
+                      </p>
+                      <p className="text-sm text-green-700 dark:text-green-300">Confirmed Planets</p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-muted/50 rounded-lg p-4">
-                        <p className="text-sm text-muted-foreground mb-1">Confidence</p>
-                        <p className="text-xl font-bold">{prediction.confidence}</p>
+                    <div className="bg-red-50 dark:bg-red-950 border-2 border-red-500 rounded-lg p-6 text-center">
+                      <div className="flex justify-center mb-2">
+                        <XCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
                       </div>
-                      <div className="bg-muted/50 rounded-lg p-4">
-                        <p className="text-sm text-muted-foreground mb-1">Model</p>
-                        <p className="text-xl font-bold">{selectedModel === "xgboost" ? "XGB" : "DNN"}</p>
-                      </div>
+                      <p className="text-3xl font-bold text-red-900 dark:text-red-100">
+                        {predictions.false_positive_count || 0}
+                      </p>
+                      <p className="text-sm text-red-700 dark:text-red-300">False Positives</p>
                     </div>
                   </div>
 
-                  <Button variant="outline" className="w-full">
-                    View Detailed Analysis
-                  </Button>
+                  {/* Statistics */}
+                  <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Total Predictions</span>
+                      <Badge variant="default" className="text-lg">
+                        {predictions.total_predictions}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Model Used</span>
+                      <Badge variant="outline">
+                        {predictions.model_used === 'ensemble' ? '🏆 Ensemble' :
+                         predictions.model_used === 'xgboost' ? '⚡ XGBoost' :
+                         predictions.model_used === 'random_forest' ? '🌲 Random Forest' :
+                         '🧠 Neural Network'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Planet Rate</span>
+                      <span className="font-medium">
+                        {((predictions.planet_count / predictions.total_predictions) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={handleExportResults}
+                      disabled={!currentUploadId}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Export Results
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={handleViewDetails}
+                      disabled={!currentUploadId}
+                    >
+                      View Details
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
