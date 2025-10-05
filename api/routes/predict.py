@@ -1,6 +1,4 @@
-"""
-Prediction Routes - Handle model predictions
-"""
+
 import sys
 import os
 from flask import Blueprint, request, jsonify
@@ -286,13 +284,13 @@ def predict_batch():
             predictions_proba = predictor.predict_proba(X, X_scaled)
             predictions = predictor.predict(X, X_scaled)
         elif model_type == 'xgboost':
-            X_scaled = predictor.scaler.transform(X)
             predictions_proba = predictor.xgb_model.predict_proba(X)[:,1]
             predictions = (predictions_proba >= 0.5).astype(int)
         elif model_type == 'random_forest':
             predictions_proba = predictor.rf_model.predict_proba(X)[:,1]
             predictions = (predictions_proba >= 0.5).astype(int)
         elif model_type == 'neural_network':
+            X_scaled = predictor.scaler.transform(X)
             predictions_proba = predictor.nn_model.predict(X_scaled, verbose=0).flatten()
             predictions = (predictions_proba >= 0.5).astype(int)
         else:
